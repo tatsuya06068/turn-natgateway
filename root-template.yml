@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template to create VPC, Subnet, NAT Gateway, Elastic IP, and Lambda function for managing NAT Gateway.
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: MyVPC
+          
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: MySubnet
+
+  EIP1:
+    Type: AWS::EC2::EIP
+
+  EIP2:
+    Type: AWS::EC2::EIP
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref Subnet
+      AllocationId: !GetAtt EIP1.AllocationId
+      Tags:
+        - Key: Name
+          Value: MyNatGateway1
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref Subnet
+      AllocationId: !GetAtt EIP2.AllocationId
+      Tags:
+        - Key: Name
+          Value: MyNatGateway2
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeNatGateways
+                  - ec2:DeleteNatGateway
+                  - ec2:CreateNatGateway
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeAddresses
+                Resource: '*'
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ManageNatGateway
+      Handler: main
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: provided.al2023
+      Timeout: 60
+      Environment:
+        Variables:
+          SUBNET_ID: !Ref Subnet
+          EIP_ALLOCATION_ID: !GetAtt EIP1.AllocationId
+      Code:
+        S3Bucket: dev-nat-lambda
+        S3Key: function.zip
+
+Outputs:
+  VPCID:
+    Description: The VPC ID
+    Value: !Ref VPC
+
+  SubnetID:
+    Description: The Subnet ID
+    Value: !Ref Subnet
+
+  ElasticIP1:
+    Description: The Elastic IP 1
+    Value: !Ref EIP1
+
+  ElasticIP2:
+    Description: The Elastic IP 2
+    Value: !Ref EIP2
+
+  NatGatewayID1:
+    Description: The NAT Gateway ID 1
+    Value: !Ref NatGateway1
+
+  NatGatewayID2:
+    Description: The NAT Gateway ID 2
+    Value: !Ref NatGateway2
+
+  LambdaFunctionName:
+    Description: The name of the Lambda function
+    Value: !Ref LambdaFunction

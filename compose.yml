@@ -1,0 +1,9 @@
+services:
+  app:
+    image: golang:1.22
+    volumes:
+      - type: bind
+        source: .
+        target: /src/app
+    working_dir: /src/app
+    tty: true
